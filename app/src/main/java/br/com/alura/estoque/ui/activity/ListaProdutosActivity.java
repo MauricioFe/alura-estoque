@@ -1,6 +1,7 @@
 package br.com.alura.estoque.ui.activity;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -47,26 +48,39 @@ public class ListaProdutosActivity extends AppCompatActivity {
     }
 
     private void buscaProdutos() {
+        buscaProdutosInternos();
+    }
+
+    private void buscaProdutosInternos() {
+        new BaseAsyncTask<>(dao::buscaTodos,
+                resultado -> {
+                    adapter.atualiza(resultado);
+                    buscaProdutosNaApi();
+                }).execute();
+    }
+
+    private void buscaProdutosNaApi() {
         ProdutoService service = new EstoqueRetrofit().getProdutoService();
         Call<List<Produto>> call = service.buscaTodos();
         call.enqueue(new Callback<List<Produto>>() {
+            private List<Produto> produtoList;
+
             @Override
             public void onResponse(Call<List<Produto>> call, Response<List<Produto>> response) {
-                List<Produto> produtoList = response.body();
-                if (produtoList != null)
-                    adapter.atualiza(produtoList);
-                else
-                    Toast.makeText(ListaProdutosActivity.this, "Não foi possível buscar dados da api", Toast.LENGTH_SHORT).show();
+                produtoList = response.body();
+                new BaseAsyncTask<>(() -> {
+                    dao.salva(produtoList);
+                    return dao.buscaTodos();
+                }, resposta -> {
+                    adapter.atualiza(resposta);
+                }).execute();
             }
 
             @Override
             public void onFailure(Call<List<Produto>> call, Throwable t) {
-                Toast.makeText(ListaProdutosActivity.this, "Não foi possível buscar dados da api", Toast.LENGTH_SHORT).show();
+                Log.i("Erro api", "onFailure: "+ t.getMessage());
             }
         });
-//        new BaseAsyncTask<>(dao::buscaTodos,
-//                resultado -> adapter.atualiza(resultado))
-//                .execute();
     }
 
     private void configuraListaProdutos() {
